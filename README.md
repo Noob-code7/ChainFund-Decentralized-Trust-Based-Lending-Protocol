@@ -13,7 +13,7 @@
 
 ## 🎯 Problem Statement
 
-Web3 lacks a standard, privacy-preserving credit score, forcing users to over-collateralize loans and limiting access to flexible payments. Current lending protocols require 150-200% collateralization—users must lock up more assets than they borrow. This restricts capital efficiency, prevents Buy Now, Pay Later (BNPL) features, and excludes millions from accessing credit based on their on-chain behavior.
+Web3 lacks a standard, privacy-preserving credit score, forcing users to over-collateralize loans and limiting access to flexible payments. Current lending protocols require 150-200% collateralization—users must lock up more assets than they borrow. This restricts capital efficiency, prevents Buy Now, Pay Later features, and excludes millions from accessing credit based on their on-chain behavior.
 
 **Our mission:** Enable trust-based, under-collateralized lending using on-chain data and community validation.
 
