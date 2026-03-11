@@ -3,8 +3,7 @@
 import { useRouter, usePathname } from 'next/navigation';
 import { useAccount } from 'wagmi';
 import { useConnect, useDisconnect } from 'wagmi';
-import { injected } from 'wagmi/connectors';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 const ADMIN_ADDRESS = '0x74E36d4A7b33057e3928CE4bf4C8C53A93361C34';
 
@@ -12,11 +11,19 @@ export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
   const { address, isConnected } = useAccount();
-  const { connect } = useConnect();
+  const { connect, connectors, isPending } = useConnect();
   const { disconnect } = useDisconnect();
+  const [isMounted, setIsMounted] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
+  const preferredConnector = useMemo(() => {
+    const injectedConnector = connectors.find((connector) => connector.id === 'injected');
+    return injectedConnector ?? connectors[0];
+  }, [connectors]);
+
   useEffect(() => {
+    setIsMounted(true);
+
     const handleMouseMove = (e: MouseEvent) => {
       const navbar = document.getElementById('floating-navbar');
       if (navbar) {
@@ -42,7 +49,12 @@ export default function Navbar() {
   };
 
   const handleConnect = () => {
-    connect({ connector: injected() });
+    if (!preferredConnector) {
+      alert('No wallet detected. Please install MetaMask or another injected wallet.');
+      return;
+    }
+
+    connect({ connector: preferredConnector });
   };
 
   const handleDisconnect = () => {
@@ -71,12 +83,12 @@ export default function Navbar() {
         <div className="flex items-center space-x-2 w-[150px] ml-[5px]">
           <img 
             src="/images/Zentra.JPEG" 
-            alt="Zentra" 
+            alt="ChainFund" 
             width="32" 
             height="32" 
             className="rounded-full"
           />
-          <span className="text-xl font-semibold text-white">Zentra</span>
+          <span className="text-xl font-semibold text-white">ChainFund</span>
         </div>
 
         {/* Navigation Links */}
@@ -128,7 +140,7 @@ export default function Navbar() {
 
         {/* Connect Wallet Button */}
         <div className="flex items-center space-x-2 relative z-10">
-          {isConnected ? (
+          {isMounted && isConnected ? (
             <button
               onClick={handleDisconnect}
               className="group relative flex cursor-pointer items-center justify-center whitespace-nowrap border border-white/10 px-6 py-3 text-white bg-black rounded-[100px] transform-gpu transition-transform duration-300 ease-in-out active:translate-y-px w-[150px] overflow-visible"
@@ -143,12 +155,13 @@ export default function Navbar() {
           ) : (
             <button
               onClick={handleConnect}
+              disabled={!isMounted || !preferredConnector || isPending}
               className="group relative flex cursor-pointer items-center justify-center whitespace-nowrap border border-white/10 px-6 py-3 text-white bg-black rounded-[100px] transform-gpu transition-transform duration-300 ease-in-out active:translate-y-px w-[150px] overflow-visible"
             >
               <div className="pointer-events-none absolute inset-0 rounded-[inherit] border border-transparent [mask-clip:padding-box,border-box] [mask-composite:intersect] [mask-image:linear-gradient(transparent,transparent),linear-gradient(#000,#000)]">
                 <div className="absolute aspect-square bg-gradient-to-l from-[#FF0000] to-transparent animate-border-orbit opacity-90" style={{ width: '51px', offsetPath: 'rect(0px auto auto 0px round 40px)' }}></div>
               </div>
-              <span className="relative z-20">Connect Wallet</span>
+              <span className="relative z-20">{isMounted && isPending ? 'Connecting...' : 'Connect Wallet'}</span>
               <div className="pointer-events-none insert-0 absolute size-full rounded-2xl px-4 py-1.5 text-sm font-medium shadow-[inset_0_-8px_10px_#ffffff1f] transform-gpu transition-all duration-300 ease-in-out group-hover:shadow-[inset_0_-6px_10px_#ffffff3f] group-active:shadow-[inset_0_-10px_10px_#ffffff3f]"></div>
               <div className="pointer-events-none absolute -z-10 bg-black rounded-[100px] inset-[0.05em]"></div>
             </button>

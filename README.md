@@ -5,7 +5,7 @@
 
 **Enabling Under-Collateralized Lending in Web3 through Community-Driven Trust Scores**
 
-![Zentra Badge](https://img.shields.io/badge/Track-Web3%20Credit%20%26%20BNPL-blue)
+![ChainFund Badge](https://img.shields.io/badge/Track-Web3%20Credit%20%26%20BNPL-blue)
 ![Status](https://img.shields.io/badge/Status-Live%20MVP-green)
 ![Network](https://img.shields.io/badge/Network-Polygon%20Amoy-purple)
 

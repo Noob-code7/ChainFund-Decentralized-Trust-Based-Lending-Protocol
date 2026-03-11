@@ -19,6 +19,7 @@ import {
   useLoanDetails,
   useCircleCount,
 } from '@/hooks/useContract';
+import { useFraudDetection } from '@/hooks/useFraudDetection';
 
 export default function UserPage() {
   const [isMounted, setIsMounted] = useState(false);
@@ -508,23 +509,60 @@ function LoanEligibility({ stats }: any) {
   );
 }
 
-// Request Loan Form
+// Request Loan Form with Fraud Detection
 function RequestLoanForm({ stats, onSuccess }: any) {
   const [amount, setAmount] = useState('');
   const [purpose, setPurpose] = useState('');
   const { requestLoan, isPending, isSuccess } = useRequestLoan();
+  const { checkFraud, isChecking } = useFraudDetection();
+  const { address } = useAccount();
+  
+  const [fraudData, setFraudData] = useState<any>(null);
+  const [trustScore, setTrustScore] = useState<any>(null);
+  const [step, setStep] = useState<'input' | 'review'>('input');
 
   useEffect(() => {
     if (isSuccess) {
       setAmount('');
       setPurpose('');
+      setFraudData(null);
+      setTrustScore(null);
+      setStep('input');
       onSuccess();
-      alert('Loan request submitted!');
+      alert('Loan request submitted successfully!');
     }
   }, [isSuccess, onSuccess]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Calculate multi-factor trust score
+  const calculateTrustScore = () => {
+    if (!stats || !address) return null;
+
+    const scores = {
+      walletAge: Math.min(15, (stats.walletAge || 0) / 12), // Max 15 pts for 180+ days
+      repaymentHistory: stats.successfulRepayments > 0 ? 15 : (stats.loansCompleted > 0 ? 10 : 0), // Max 15 pts
+      verificationScore: stats.isVerified ? 10 : 0, // 10 pts for selfie verification
+      circleActivity: stats.circleScore ? Math.min(10, stats.circleScore / 70) : 0, // Max 10 pts
+      platformActivity: Math.min(10, (stats.finalScore || 0) / 10), // Max 10 pts from final score
+    };
+
+    const totalScore = Math.round(
+      scores.walletAge + 
+      scores.repaymentHistory + 
+      scores.verificationScore + 
+      scores.circleActivity + 
+      scores.platformActivity
+    );
+
+    return {
+      total: Math.min(100, totalScore),
+      breakdown: scores,
+      maxBorrowable: Math.min(parseInt(amount) || 0, (stats.maxLoanAmount || 200) * 0.8),
+    };
+  };
+
+  const handleCheckFraud = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (!amount || parseFloat(amount) <= 0) {
       alert('Please enter a valid amount');
       return;
@@ -533,11 +571,50 @@ function RequestLoanForm({ stats, onSuccess }: any) {
       alert('Please provide a loan purpose');
       return;
     }
+
+    const trust = calculateTrustScore();
+    setTrustScore(trust);
+
+    // Run fraud check
+    const fraud = await checkFraud({
+      walletAddress: address || '',
+      requestedAmount: parseFloat(amount),
+      maxEligible: stats?.maxLoanAmount || 200,
+      loanPurpose: purpose,
+      walletAge: stats?.walletAge || 0,
+      totalTransactions: stats?.totalTransactions || 0,
+      previousLoans: stats?.loansCompleted || 0,
+      successfulRepayments: stats?.loansCompleted || 0,
+      circleCount: stats?.circleId > 0 ? 1 : 0,
+    });
+
+    setFraudData(fraud);
+    setStep('review');
+  };
+
+  const handleConfirmLoan = () => {
+    if (fraudData?.recommendation === 'block') {
+      alert('Cannot submit loan: High fraud risk detected');
+      return;
+    }
+    if (parseFloat(amount) > (trustScore?.maxBorrowable || 0)) {
+      alert('Amount exceeds eligible limit based on trust score');
+      return;
+    }
     requestLoan(amount, purpose);
   };
 
   const hasCircle = stats?.circleId > 0;
   const hasActiveLoan = stats?.hasActiveLoan;
+
+  const getRiskColor = (level: string) => {
+    switch (level) {
+      case 'low': return 'text-green-400 bg-green-400/10';
+      case 'medium': return 'text-yellow-400 bg-yellow-400/10';
+      case 'high': return 'text-red-400 bg-red-400/10';
+      default: return 'text-white/60 bg-white/5';
+    }
+  };
 
   return (
     <div className="bg-white/10 backdrop-blur-md rounded-lg p-6 border border-white/20">
@@ -547,20 +624,21 @@ function RequestLoanForm({ stats, onSuccess }: any) {
         <p className="text-white/60 text-center py-8">Join a Trust Circle first</p>
       ) : hasActiveLoan ? (
         <p className="text-white/60 text-center py-8">Repay active loan before requesting new one</p>
-      ) : (
-        <form onSubmit={handleSubmit} className="space-y-4">
+      ) : step === 'input' ? (
+        <form onSubmit={handleCheckFraud} className="space-y-4">
           <div>
             <label className="text-sm text-white/60 mb-2 block">Amount (POL)</label>
             <input
               type="number"
               step="1"
               min="10"
-              max="200"
+              max={stats?.maxLoanAmount || 200}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder="Enter amount (10-200)"
+              placeholder={`Enter amount (10-${stats?.maxLoanAmount || 200})`}
               className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40"
             />
+            <p className="text-xs text-white/40 mt-1">Max eligible: {stats?.maxLoanAmount || 200} POL</p>
           </div>
 
           <div>
@@ -568,7 +646,7 @@ function RequestLoanForm({ stats, onSuccess }: any) {
             <textarea
               value={purpose}
               onChange={(e) => setPurpose(e.target.value)}
-              placeholder="Why do you need this loan?"
+              placeholder="Why do you need this loan? (be specific)"
               rows={3}
               className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 resize-none"
             />
@@ -576,12 +654,102 @@ function RequestLoanForm({ stats, onSuccess }: any) {
 
           <button
             type="submit"
-            disabled={isPending}
+            disabled={isChecking}
             className="w-full bg-white/90 hover:bg-white text-black py-3 rounded-lg font-semibold transition disabled:opacity-50"
           >
-            {isPending ? 'Submitting...' : 'Request Loan'}
+            {isChecking ? 'Analyzing Fraud Risk...' : 'Review & Submit'}
           </button>
         </form>
+      ) : (
+        <div className="space-y-4">
+          {/* Trust Score Display */}
+          <div className="bg-white/5 p-4 rounded-lg border border-white/10">
+            <p className="text-white/60 text-sm mb-2">Your Trust Score</p>
+            <div className="flex items-end gap-4">
+              <div className="flex-1">
+                <p className="text-white text-4xl font-bold">{trustScore?.total || 0}</p>
+                <p className="text-white/40 text-xs mt-1">out of 100</p>
+              </div>
+              <div className="flex-1 space-y-2 text-xs">
+                <div className="flex justify-between text-white/60">
+                  <span>Wallet Age</span>
+                  <span className="text-white">{Math.round(trustScore?.breakdown.walletAge || 0)}/15</span>
+                </div>
+                <div className="flex justify-between text-white/60">
+                  <span>Repayment</span>
+                  <span className="text-white">{trustScore?.breakdown.repaymentHistory || 0}/15</span>
+                </div>
+                <div className="flex justify-between text-white/60">
+                  <span>Verification</span>
+                  <span className="text-white">{trustScore?.breakdown.verificationScore || 0}/10</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Fraud Risk Display */}
+          {fraudData && (
+            <div className={`p-4 rounded-lg border border-white/10 ${getRiskColor(fraudData.riskLevel)}`}>
+              <p className="text-sm font-semibold mb-2">Fraud Risk Assessment</p>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs">Risk Score: {fraudData.fraudScore}/100</span>
+                <span className="text-xs capitalize px-2 py-1 bg-white/20 rounded">{fraudData.riskLevel}</span>
+              </div>
+              <p className="text-xs mb-3">{fraudData.explanation}</p>
+              
+              {fraudData.riskFactors && fraudData.riskFactors.length > 0 && (
+                <div className="bg-white/5 p-2 rounded text-xs space-y-1 mb-3">
+                  <p className="font-semibold text-white/80">Risk Factors:</p>
+                  {fraudData.riskFactors.slice(0, 3).map((factor: any, i: number) => (
+                    <p key={i} className="text-white/60">• {factor.factor}</p>
+                  ))}
+                </div>
+              )}
+
+              {fraudData.recommendation === 'block' && (
+                <p className="text-xs text-red-300 bg-red-500/10 p-2 rounded">
+                  ⚠️ Cannot proceed: High fraud risk detected
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Loan Summary */}
+          <div className="bg-white/5 p-4 rounded-lg border border-white/10">
+            <p className="text-white/60 text-sm mb-2">Loan Summary</p>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between text-white/80">
+                <span>Requested Amount</span>
+                <span className="text-white font-semibold">{amount} POL</span>
+              </div>
+              <div className="flex justify-between text-white/80">
+                <span>Interest Rate</span>
+                <span className="text-white font-semibold">{stats?.interestRate || 5}%</span>
+              </div>
+              <div className="flex justify-between text-white/80">
+                <span>Est. Repayment</span>
+                <span className="text-white font-semibold">{(parseFloat(amount) * (1 + (stats?.interestRate || 5) / 100)).toFixed(2)} POL</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setStep('input')}
+              className="flex-1 bg-white/10 hover:bg-white/20 text-white py-3 rounded-lg font-semibold transition"
+            >
+              Back
+            </button>
+            <button
+              onClick={handleConfirmLoan}
+              disabled={isPending || fraudData?.recommendation === 'block' || parseFloat(amount) > (trustScore?.maxBorrowable || 0)}
+              className="flex-1 bg-white/90 hover:bg-white text-black py-3 rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isPending ? 'Submitting...' : 'Confirm & Submit'}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

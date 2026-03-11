@@ -17,5 +17,5 @@ export const wagmiConfig = createConfig({
     injected(),
   ],
 
-  ssr: true,
+  ssr: false,
 });

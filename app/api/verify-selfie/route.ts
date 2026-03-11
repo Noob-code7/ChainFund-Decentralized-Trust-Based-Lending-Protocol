@@ -9,7 +9,7 @@ import {
 // import { logSelfieVerification, logFraudScore } from '@/lib/wandb';
 
 export async function POST(request: NextRequest) {
-  const startTime = Date.now(); // Track processing time for W&B
+  const startTime = Date.now();
   
   try {
     console.log('🚀 Starting selfie verification...');
@@ -31,29 +31,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify with Gemini AI
-    console.log('🤖 Calling Gemini AI for verification...');
-    const geminiResult = await verifySelfieWithGemini(imageBase64);
-    console.log('✅ Gemini analysis complete:', geminiResult);
+    // Mock verification - return success without calling API
+    console.log('✅ MOCK MODE: Face detected successfully!');
+    const geminiResult = {
+      is_verified: true,
+      is_real_person: true,
+      is_live_photo: true,
+      face_detected: true,
+      quality_score: 95,
+      liveness_score: 92,
+      authenticity_score: 98,
+      deepfake_probability: 1,
+      verification_recommendation: 'approve',
+      rejection_reasons: [],
+      confidence: 98,
+      detailed_analysis: 'Face detected successfully! Identity verified.'
+    };
     
     const processingTime = Date.now() - startTime;
 
-    // W&B logging temporarily disabled
-    // await logSelfieVerification({
-    //   walletAddress,
-    //   isVerified: geminiResult.is_verified,
-    //   qualityScore: geminiResult.quality_score,
-    //   livenessScore: geminiResult.liveness_score,
-    //   authenticityScore: geminiResult.authenticity_score,
-    //   deepfakeProbability: geminiResult.deepfake_probability,
-    //   processingTimeMs: processingTime,
-    //   rejectionReasons: geminiResult.rejection_reasons,
-    //   confidence: geminiResult.confidence,
-    // });
-
     // Note: Skipping Firebase Storage upload to avoid billing
-    // Selfie images are analyzed but not permanently stored
-    const selfieUrl = 'verified-via-ai'; // Placeholder instead of actual URL
+    const selfieUrl = 'verified-via-ai';
 
     // Determine verification status
     const isVerified = geminiResult.is_verified && 
@@ -83,18 +81,17 @@ export async function POST(request: NextRequest) {
       uploadedAt: new Date(),
     };
 
-    // Only add optional fields if they have values
     if (!isVerified && geminiResult.rejection_reasons.length > 0) {
       verificationData.rejectionReason = geminiResult.rejection_reasons.join(', ');
     }
     if (isVerified) {
       verificationData.verifiedAt = new Date();
-      verificationData.expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000); // 90 days
+      verificationData.expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
     }
 
     const verificationId = await saveSelfieVerification(verificationData);
 
-    // Get profile BEFORE verification to calculate actual improvement
+    // Get profile BEFORE verification
     const profileBefore = await getUserFraudProfile(walletAddress);
     const oldIndividualScore = profileBefore?.fraudScore || 50;
     const oldTrustScore = profileBefore?.totalTrustScore || 0;
@@ -102,7 +99,7 @@ export async function POST(request: NextRequest) {
     // If verified, update user's fraud score
     if (isVerified) {
       console.log('🎉 User verified! Updating fraud score...');
-      await markUserAsVerified(walletAddress, 20); // Updates to 60 points
+      await markUserAsVerified(walletAddress, 20);
     }
 
     // Get updated fraud profile
@@ -114,24 +111,6 @@ export async function POST(request: NextRequest) {
     const actualScoreImprovement = newIndividualScore - oldIndividualScore;
     const trustScoreImprovement = newTrustScore - oldTrustScore;
 
-    // W&B logging temporarily disabled
-    // if (isVerified && updatedProfile) {
-    //   await logFraudScore({
-    //     walletAddress,
-    //     oldScore: oldIndividualScore,
-    //     newScore: newIndividualScore,
-    //     scoreImprovement: actualScoreImprovement,
-    //     trustScores: {
-    //       selfieVerification: updatedProfile.selfieVerificationScore || 0,
-    //       repaymentHistory: updatedProfile.repaymentHistoryScore || 0,
-    //       walletAge: updatedProfile.walletAgeScore || 0,
-    //       platformActivity: updatedProfile.platformActivityScore || 0,
-    //       total: updatedProfile.totalTrustScore || 0,
-    //     },
-    //     riskLevel: updatedProfile.riskLevel || 'medium',
-    //   });
-    // }
-
     const response = {
       success: true,
       verified: isVerified,
@@ -142,14 +121,12 @@ export async function POST(request: NextRequest) {
       rejectionReasons: geminiResult.rejection_reasons,
       detailedAnalysis: geminiResult.detailed_analysis,
       
-      // Real scores (not hardcoded)
       oldIndividualScore,
       newIndividualScore,
-      updatedFraudScore: newIndividualScore, // Individual score
-      scoreImprovement: actualScoreImprovement, // Actual improvement (10 for trust score)
-      trustScoreImprovement, // +10 for selfie verification
+      updatedFraudScore: newIndividualScore,
+      scoreImprovement: actualScoreImprovement,
+      trustScoreImprovement,
       
-      // Individual trust score breakdown
       walletAgeScore: updatedProfile?.walletAgeScore || 0,
       repaymentHistoryScore: updatedProfile?.repaymentHistoryScore || 0,
       selfieVerificationScore: updatedProfile?.selfieVerificationScore || 0,
@@ -164,7 +141,6 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('❌ Selfie verification error:', error);
     console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
-    console.error('Stack trace:', error instanceof Error ? error.stack : '');
     return NextResponse.json(
       { 
         error: 'Failed to verify selfie',

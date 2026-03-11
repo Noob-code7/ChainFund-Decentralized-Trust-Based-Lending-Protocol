@@ -6,6 +6,7 @@ import { useConnect, useAccount } from 'wagmi';
 import { injected } from 'wagmi/connectors';
 import Image from 'next/image';
 import { getUserFraudProfile } from '@/lib/fraudDatabase';
+import Aurora from '@/components/Aurora';
 
 export default function Home() {
   const pillars = [92, 84, 78, 70, 62, 54, 46, 34, 18, 34, 46, 54, 62, 70, 78, 84, 92];
@@ -144,20 +145,14 @@ export default function Home() {
 
       <section className="relative isolate min-h-screen overflow-hidden bg-black text-white">
         {/* BACKGROUND */}
-        <div
-          aria-hidden
-          className="absolute inset-0 -z-30"
-          style={{
-            backgroundImage: [
-              "radial-gradient(circle at 50% 52%, rgba(255,100,60,0.85) 0%, rgba(255,80,40,0.75) 18%, rgba(240,70,30,0.6) 32%, rgba(200,60,25,0.45) 50%, rgba(150,50,20,0.25) 70%, rgba(0,0,0,0) 100%)",
-              "radial-gradient(circle at 14% 0%, rgba(255,90,50,0.85) 0%, rgba(255,75,35,0.75) 15%, rgba(240,65,30,0.6) 30%, rgba(200,55,25,0.3) 50%, rgba(150,45,20,0) 70%)",
-              "radial-gradient(circle at 86% 22%, rgba(255,95,55,0.75) 0%, rgba(255,80,40,0.6) 15%, rgba(240,70,35,0.4) 35%, rgba(200,60,30,0) 55%)",
-              "linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0) 50%)",
-            ].join(","),
-            backgroundColor: "#000",
-            filter: "blur(60px)",
-          }}
-        />
+        <div aria-hidden className="absolute inset-0 -z-30 bg-black">
+          <Aurora
+            colorStops={['#7cff67', '#B19EEF', '#5227FF']}
+            blend={0.5}
+            amplitude={1.0}
+            speed={1}
+          />
+        </div>
 
         <div 
           aria-hidden 
@@ -396,7 +391,7 @@ export default function Home() {
                   <span className="text-sm bg-gradient-to-r from-[#C0C0C0] to-white bg-clip-text text-transparent font-medium">Step 1</span>
                 </div>
                 <h3 className="text-2xl font-medium mb-4 text-white group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-t group-hover:from-white group-hover:to-[#C0C0C0] transition-colors duration-300">Connect Wallet</h3>
-                <p className="text-white/70 leading-relaxed mb-6 font-normal text-sm">Start your journey by securely linking your Polygon wallet. Zentra uses your wallet as your identity-no sign-ups or passwords.</p>
+                <p className="text-white/70 leading-relaxed mb-6 font-normal text-sm">Start your journey by securely linking your Polygon wallet. ChainFund uses your wallet as your identity-no sign-ups or passwords.</p>
                 <ul className="space-y-3 mb-6 flex-grow">
                   <li className="flex items-center text-xs text-white/70">
                     <div className="w-1.5 h-1.5 bg-[#C0C0C0]/70 rounded-full mr-3 flex-shrink-0"></div>
